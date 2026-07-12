@@ -1,0 +1,219 @@
+// SHOGO:CUSTOM-START prisma-header
+// Managed by Shogo. Do not add a datasource `url` or change the generator `provider` — the database URL is configured in prisma.config.ts (Prisma 7+).
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+// SHOGO:CUSTOM-END
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  phone        String?   @unique
+  password     String
+  role         String    @default("customer") // customer | admin
+  gender       String?
+  dateOfBirth  DateTime?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  addresses    Address[]
+  cartItems    CartItem[]
+  orders       Order[]
+  prescriptions Prescription[]
+  wishlist     Wishlist[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  slug        String     @unique
+  icon        String?
+  description String?
+  parentId    String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  medicines   Medicine[]
+
+  @@map("categories")
+}
+
+model Medicine {
+  id                  String   @id @default(cuid())
+  sku                 String   @unique
+  name                String
+  genericName         String
+  slug                String   @unique
+  composition         String
+  manufacturer        String
+  hsnCode             String?
+  categoryId          String
+  subcategory         String?
+  packSize            String
+  mrp                 Float
+  sellingPrice        Float
+  gst                 Float    @default(12.0)
+  discount            Float    @default(0)
+  stockQuantity       Int      @default(0)
+  minimumStockLevel   Int      @default(10)
+  description         String?
+  dosageInfo          String?
+  benefits            String?
+  sideEffects         String?
+  prescriptionRequired Boolean @default(false)
+  expiryDate          DateTime?
+  batchNumber         String?
+  imageUrl            String?
+  isActive            Boolean  @default(true)
+  isFeatured          Boolean  @default(false)
+  rating              Float    @default(0)
+  reviewCount         Int      @default(0)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  category            Category @relation(fields: [categoryId], references: [id])
+  cartItems           CartItem[]
+  orderItems          OrderItem[]
+  wishlist            Wishlist[]
+
+  @@map("medicines")
+}
+
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  type      String  @default("home") // home | work | other
+  isDefault Boolean @default(false)
+
+  user      User    @relation(fields: [userId], references: [id])
+  orders    Order[]
+
+  @@map("addresses")
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  userId     String
+  medicineId String
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user       User     @relation(fields: [userId], references: [id])
+  medicine   Medicine @relation(fields: [medicineId], references: [id])
+
+  @@unique([userId, medicineId])
+  @@map("cart_items")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  userId          String
+  addressId       String
+  status          String      @default("pending")
+  // pending | confirmed | packed | shipped | delivered | cancelled | returned
+  subtotal        Float
+  deliveryCharge  Float       @default(0)
+  gstAmount       Float       @default(0)
+  discount        Float       @default(0)
+  total           Float
+  paymentMethod   String?
+  paymentStatus   String      @default("pending") // pending | paid | failed | refunded
+  paymentId       String?
+  notes           String?
+  prescriptionUrl String?
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  user            User        @relation(fields: [userId], references: [id])
+  address         Address     @relation(fields: [addressId], references: [id])
+  items           OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  medicineId String
+  quantity   Int
+  price      Float
+  total      Float
+
+  order      Order    @relation(fields: [orderId], references: [id])
+  medicine   Medicine @relation(fields: [medicineId], references: [id])
+
+  @@map("order_items")
+}
+
+model Prescription {
+  id        String   @id @default(cuid())
+  userId    String
+  imageUrl  String
+  fileName  String
+  status    String   @default("pending") // pending | approved | rejected
+  orderId   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("prescriptions")
+}
+
+model Wishlist {
+  id         String   @id @default(cuid())
+  userId     String
+  medicineId String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id])
+  medicine   Medicine @relation(fields: [medicineId], references: [id])
+
+  @@unique([userId, medicineId])
+  @@map("wishlist")
+}
+
+model Coupon {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String?
+  discount    Float
+  maxDiscount Float?
+  minOrder    Float    @default(0)
+  isActive    Boolean  @default(true)
+  validUntil  DateTime?
+  usageLimit  Int?
+  usedCount   Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("coupons")
+}
+
+model OtpVerification {
+  id        String   @id @default(cuid())
+  phone     String
+  otp       String
+  purpose   String   // register | login | checkout
+  verified  Boolean  @default(false)
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone, purpose])
+  @@map("otp_verifications")
+}
