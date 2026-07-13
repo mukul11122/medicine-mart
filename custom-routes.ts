@@ -66,6 +66,10 @@ app.get('/wa/status', async (c) => c.json(getWaStatus()))
 app.get('/wa/qr', async (c) => c.json(getWaStatus()))
 app.post('/wa/logout', async (c) => { logoutWa(); return c.json({ ok: true }) })
 
+// small delay between bulk sends (lowers ban risk)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const SEND_DELAY_MS = parseInt(process.env.WA_SEND_DELAY_MS || '1500')
+
 app.post('/whatsapp/bulk-send', async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const { template, customers } = body
@@ -80,7 +84,10 @@ app.post('/whatsapp/bulk-send', async (c) => {
     return c.json({ error: 'WhatsApp not connected — scan QR first', results: [] }, 400)
   }
   const results: any[] = []
+  let i = 0
   for (const cust of customers) {
+    if (i > 0) await sleep(SEND_DELAY_MS)
+    i++
     const phone = String(cust.phone || '').trim()
     const docket = String(cust.docket || '').trim()
     if (!phone) {
