@@ -57,6 +57,49 @@ async function sendStoreEmail(subject: string, html: string) {
   }
 }
 
+// ── Bulk WhatsApp (Twilio) ───────────────────────────────
+async function sendWhatsAppMessage(toPhone: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  if (!twilioClient || !twilioPhoneNumber) return { ok: false, error: 'Twilio not configured' }
+  const digits = toPhone.replace(/\D/g, '')
+  const e164 = digits.length === 10 ? `91${digits}` : digits
+  const fromSender = process.env.TWILIO_WHATSAPP_FROM || twilioPhoneNumber
+  try {
+    await twilioClient.messages.create({
+      from: `whatsapp:${fromSender}`,
+      to: `whatsapp:+${e164}`,
+      body,
+    })
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+}
+
+app.post('/whatsapp/bulk-send', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const { template, customers } = body
+  if (!Array.isArray(customers) || customers.length === 0) {
+    return c.json({ error: 'customers array required' }, 400)
+  }
+  if (!template || typeof template !== 'string') {
+    return c.json({ error: 'template required' }, 400)
+  }
+  const results: any[] = []
+  for (const cust of customers) {
+    const phone = String(cust.phone || '').trim()
+    const docket = String(cust.docket || '').trim()
+    if (!phone) {
+      results.push({ phone, docket, status: 'skipped', error: 'no phone' })
+      continue
+    }
+    const msg = template.replace(/\{docket\}/gi, docket || '(N/A)')
+    const r = await sendWhatsAppMessage(phone, msg)
+    results.push({ phone, docket, status: r.ok ? 'sent' : 'failed', error: r.error })
+  }
+  const sent = results.filter((r) => r.status === 'sent').length
+  return c.json({ sent, failed: results.length - sent, results })
+})
+
 // ── Auth Routes ──────────────────────────────────────────────
 
 app.post('/auth/register', async (c) => {

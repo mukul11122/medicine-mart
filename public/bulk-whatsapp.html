@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JanAushadhiGenerix — Bulk WhatsApp</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #f0fdf4; color: #111; padding: 24px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    header {
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      color: #fff; padding: 18px 22px; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header p { margin: 4px 0 0; font-size: 13px; opacity: .9; }
+    section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-top: 16px; }
+    label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #166534; }
+    textarea, input {
+      width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+      font-size: 14px; font-family: inherit; outline: none;
+    }
+    textarea { resize: vertical; min-height: 70px; }
+    textarea:focus, input:focus { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+    button {
+      background: #16a34a; color: #fff; border: 0; padding: 10px 16px; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s;
+    }
+    button:hover { background: #15803d; }
+    button.secondary { background: #6b7280; }
+    button.secondary:hover { background: #4b5563; }
+    button.danger { background: #dc2626; padding: 4px 10px; font-size: 12px; }
+    button.danger:hover { background: #b91c1c; }
+    .manual { display: flex; gap: 10px; align-items: flex-end; }
+    .manual > div { flex: 1; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+    th { color: #166534; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .count { font-size: 13px; color: #555; margin-top: 8px; }
+    #status { margin-top: 14px; font-size: 14px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill.sent { background: #dcfce7; color: #166534; }
+    .pill.failed { background: #fee2e2; color: #991b1b; }
+    .pill.skipped { background: #fef3c7; color: #92400e; }
+    code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .note { font-size: 12px; color: #6b7280; margin-top: 10px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>📦 JanAushadhiGenerix — Bulk WhatsApp Sender</h1>
+      <p>Add docket + phone for each customer, then blast one message to all.</p>
+    </header>
+
+    <section>
+      <label for="template">Message template <span style="font-weight:400;color:#6b7280">(use <code>{docket}</code> where the docket number goes)</span></label>
+      <textarea id="template">Hello! Your JanAushadhiGenerix order with docket *{docket}* is ready for dispatch. Thank you for choosing quality generic medicines. 💊</textarea>
+    </section>
+
+    <section>
+      <label for="bulk">Bulk paste — one per line: <code>docket,phone</code></label>
+      <textarea id="bulk" placeholder="DOCKET001,919458353800&#10;DOCKET002,919876543210"></textarea>
+      <div style="margin-top:10px"><button class="secondary" id="parseBtn">Parse list</button></div>
+    </section>
+
+    <section>
+      <label>Or add manually</label>
+      <div class="manual">
+        <div><input id="docket" placeholder="Docket number" /></div>
+        <div><input id="phone" placeholder="Phone (10 digits)" /></div>
+        <div style="flex:0 0 auto"><button id="addBtn">Add</button></div>
+      </div>
+      <table id="tbl">
+        <thead><tr><th>Docket</th><th>Phone</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="count" id="count">0 customers added</div>
+    </section>
+
+    <section>
+      <button id="sendBtn">📤 Send to All</button>
+      <div id="status"></div>
+      <p class="note">
+        Messages are sent via Twilio WhatsApp from your configured sender. Requires the sender number to be
+        WhatsApp-enabled (Twilio WhatsApp sandbox or approved WABA). On a trial account only <b>verified</b> recipient
+        numbers can be messaged. Recipients should have opted in to receive business messages.
+      </p>
+    </section>
+  </div>
+
+  <script>
+    const customers = []
+    const $ = (id) => document.getElementById(id)
+
+    function render() {
+      const tbody = $('rows')
+      tbody.innerHTML = ''
+      customers.forEach((c, i) => {
+        const tr = document.createElement('tr')
+        tr.innerHTML = `<td>${escapeHtml(c.docket)}</td><td>${escapeHtml(c.phone)}</td>` +
+          `<td style="text-align:right"><button class="danger" data-i="${i}">Remove</button></td>`
+        tbody.appendChild(tr)
+      })
+      $('count').textContent = `${customers.length} customer${customers.length === 1 ? '' : 's'} added`
+      tbody.querySelectorAll('button.danger').forEach((b) => {
+        b.onclick = () => { customers.splice(+b.dataset.i, 1); render() }
+      })
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]))
+    }
+
+    function addCustomer(docket, phone) {
+      docket = (docket || '').trim()
+      phone = (phone || '').trim()
+      if (!phone) return false
+      customers.push({ docket, phone })
+      render()
+      return true
+    }
+
+    $('parseBtn').onclick = () => {
+      const text = $('bulk').value.trim()
+      if (!text) return
+      text.split('\n').forEach((line) => {
+        const parts = line.split(',').map((s) => s.trim())
+        if (parts.length >= 2) addCustomer(parts[0], parts[1])
+      })
+      $('bulk').value = ''
+    }
+
+    $('addBtn').onclick = () => {
+      const ok = addCustomer($('docket').value, $('phone').value)
+      if (ok) { $('docket').value = ''; $('phone').value = ''; $('docket').focus() }
+    }
+
+    $('sendBtn').onclick = async () => {
+      if (customers.length === 0) { alert('Add at least one customer first.'); return }
+      const template = $('template').value
+      if (!template) { alert('Message template is empty.'); return }
+      const btn = $('sendBtn')
+      btn.disabled = true
+      btn.textContent = 'Sending…'
+      $('status').innerHTML = 'Sending messages, please wait…'
+      try {
+        const res = await fetch('/api/whatsapp/bulk-send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template, customers }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          $('status').innerHTML = `<span class="pill failed">Error</span> ${escapeHtml(data.error || res.status)}`
+        } else {
+          const rows = data.results.map((r) =>
+            `<tr><td>${escapeHtml(r.docket)}</td><td>${escapeHtml(r.phone)}</td>` +
+            `<td><span class="pill ${r.status}">${r.status}</span>${r.error ? ` <small style="color:#991b1b">${escapeHtml(r.error)}</small>` : ''}</td></tr>`
+          ).join('')
+          $('status').innerHTML =
+            `<p><b>${data.sent}</b> sent, <b>${data.failed}</b> failed (of ${data.results.length}).</p>` +
+            `<table><thead><tr><th>Docket</th><th>Phone</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`
+        }
+      } catch (e) {
+        $('status').innerHTML = `<span class="pill failed">Network error</span> ${escapeHtml(e.message)}`
+      } finally {
+        btn.disabled = false
+        btn.textContent = '📤 Send to All'
+      }
+    }
+
+    render()
+  </script>
+</body>
+</html>
