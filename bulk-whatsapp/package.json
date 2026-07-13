@@ -1,0 +1,17 @@
+{
+  "name": "janaushadhi-bulk-whatsapp",
+  "version": "1.0.0",
+  "description": "Standalone bulk WhatsApp sender for JanAushadhiGenerix (personal account via QR)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.0",
+    "qrcode": "^1.5.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
