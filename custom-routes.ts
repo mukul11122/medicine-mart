@@ -7,6 +7,7 @@ import nodemailer from 'nodemailer'
 import { writeFile, mkdir, readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { initWa, getWaStatus, sendWaMessage, logoutWa } from './src/lib/wa'
 
 const app = new Hono()
 
@@ -57,23 +58,13 @@ async function sendStoreEmail(subject: string, html: string) {
   }
 }
 
-// ── Bulk WhatsApp (Twilio) ───────────────────────────────
-async function sendWhatsAppMessage(toPhone: string, body: string): Promise<{ ok: boolean; error?: string }> {
-  if (!twilioClient || !twilioPhoneNumber) return { ok: false, error: 'Twilio not configured' }
-  const digits = toPhone.replace(/\D/g, '')
-  const e164 = digits.length === 10 ? `91${digits}` : digits
-  const fromSender = process.env.TWILIO_WHATSAPP_FROM || twilioPhoneNumber
-  try {
-    await twilioClient.messages.create({
-      from: `whatsapp:${fromSender}`,
-      to: `whatsapp:+${e164}`,
-      body,
-    })
-    return { ok: true }
-  } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) }
-  }
-}
+// ── Personal WhatsApp (Baileys) bulk sender ─────────────
+// OTP still uses Twilio SMS. This uses the store owner's personal
+// WhatsApp account (scanned QR) for bulk customer messages.
+
+app.get('/wa/status', async (c) => c.json(getWaStatus()))
+app.get('/wa/qr', async (c) => c.json(getWaStatus()))
+app.post('/wa/logout', async (c) => { logoutWa(); return c.json({ ok: true }) })
 
 app.post('/whatsapp/bulk-send', async (c) => {
   const body = await c.req.json().catch(() => ({}))
@@ -84,6 +75,10 @@ app.post('/whatsapp/bulk-send', async (c) => {
   if (!template || typeof template !== 'string') {
     return c.json({ error: 'template required' }, 400)
   }
+  const { connected } = getWaStatus()
+  if (!connected) {
+    return c.json({ error: 'WhatsApp not connected — scan QR first', results: [] }, 400)
+  }
   const results: any[] = []
   for (const cust of customers) {
     const phone = String(cust.phone || '').trim()
@@ -93,7 +88,7 @@ app.post('/whatsapp/bulk-send', async (c) => {
       continue
     }
     const msg = template.replace(/\{docket\}/gi, docket || '(N/A)')
-    const r = await sendWhatsAppMessage(phone, msg)
+    const r = await sendWaMessage(phone, msg)
     results.push({ phone, docket, status: r.ok ? 'sent' : 'failed', error: r.error })
   }
   const sent = results.filter((r) => r.status === 'sent').length
@@ -1044,5 +1039,8 @@ app.get('/fcm/tokens', async (c) => {
     return c.json({ tokens: [] })
   }
 })
+
+// ── Start personal WhatsApp client (Baileys) ──────────
+void initWa()
 
 export default app

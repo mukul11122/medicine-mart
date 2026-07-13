@@ -40,3 +40,6 @@ fcm-tokens.json
 # OS
 Thumbs.db
 Desktop.ini
+
+# WhatsApp (Baileys) session
+wa-auth
