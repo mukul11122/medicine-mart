@@ -1116,6 +1116,7 @@ export type OtpVerificationCreateManyArgs<ExtArgs extends runtime.Types.Extensio
    * The data used to create many OtpVerifications.
    */
   data: Prisma.OtpVerificationCreateManyInput | Prisma.OtpVerificationCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1134,6 +1135,7 @@ export type OtpVerificationCreateManyAndReturnArgs<ExtArgs extends runtime.Types
    * The data used to create many OtpVerifications.
    */
   data: Prisma.OtpVerificationCreateManyInput | Prisma.OtpVerificationCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

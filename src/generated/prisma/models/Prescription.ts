@@ -428,6 +428,7 @@ export type PrescriptionCreateOrConnectWithoutUserInput = {
 
 export type PrescriptionCreateManyUserInputEnvelope = {
   data: Prisma.PrescriptionCreateManyUserInput | Prisma.PrescriptionCreateManyUserInput[]
+  skipDuplicates?: boolean
 }
 
 export type PrescriptionUpsertWithWhereUniqueWithoutUserInput = {
@@ -1229,6 +1230,7 @@ export type PrescriptionCreateManyArgs<ExtArgs extends runtime.Types.Extensions.
    * The data used to create many Prescriptions.
    */
   data: Prisma.PrescriptionCreateManyInput | Prisma.PrescriptionCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1247,6 +1249,7 @@ export type PrescriptionCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Ex
    * The data used to create many Prescriptions.
    */
   data: Prisma.PrescriptionCreateManyInput | Prisma.PrescriptionCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

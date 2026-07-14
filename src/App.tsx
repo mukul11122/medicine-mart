@@ -100,7 +100,7 @@ interface Coupon {
   discountAmount: number
 }
 
-type Page = 'home' | 'medicines' | 'medicine-detail' | 'cart' | 'checkout' | 'login' | 'register' | 'orders' | 'order-detail' | 'admin' | 'admin-medicines' | 'admin-orders' | 'admin-add-medicine' | 'admin-inventory' | 'wishlist' | 'profile'
+type Page = 'home' | 'medicines' | 'medicine-detail' | 'cart' | 'checkout' | 'login' | 'register' | 'orders' | 'order-detail' | 'admin' | 'admin-medicines' | 'admin-orders' | 'admin-add-medicine' | 'admin-inventory' | 'wishlist' | 'profile' | 'forgot-password' | 'reset-password'
 
 interface AppState {
   page: Page
@@ -117,6 +117,7 @@ interface AppState {
   darkMode: boolean
   setDarkMode: (d: boolean) => void
   refreshCart: () => void
+  resetToken: string | null
 }
 
 const AppContext = createContext<AppState>({
@@ -128,6 +129,7 @@ const AppContext = createContext<AppState>({
   selectedOrder: null, setSelectedOrder: () => {},
   darkMode: false, setDarkMode: () => {},
   refreshCart: () => {},
+  resetToken: null,
 })
 
 // ── API Helpers ──────────────────────────────────────────────
@@ -155,11 +157,24 @@ export default function App() {
     }
     return false
   })
+  const [resetToken, setResetToken] = useState<string | null>(null)
 
   useEffect(() => {
     localStorage.setItem('jan-dark', String(darkMode))
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
+
+  // Open password-reset page when arriving via a reset link (?token=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    if (token) {
+      setResetToken(token)
+      setPage('reset-password')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   // ── Firebase Cloud Messaging (push notifications) ──
   useEffect(() => {
@@ -207,7 +222,7 @@ export default function App() {
     cart, setCart, cartCount,
     selectedMedicine, setSelectedMedicine,
     selectedOrder, setSelectedOrder,
-    darkMode, setDarkMode, refreshCart,
+    darkMode, setDarkMode, refreshCart, resetToken,
   }
 
   return (
@@ -257,6 +272,8 @@ export default function App() {
           {page === 'admin-inventory' && <AdminInventory />}
           {page === 'wishlist' && <WishlistPage />}
           {page === 'profile' && <ProfilePage />}
+          {page === 'forgot-password' && <ForgotPasswordPage />}
+          {page === 'reset-password' && <ResetPasswordPage token={resetToken} />}
         </main>
         <Footer />
       </div>
@@ -1881,6 +1898,16 @@ function LoginPage() {
                 />
               </div>
 
+              <div className="flex justify-end -mt-2">
+                <button
+                  type="button"
+                  onClick={() => setPage('forgot-password')}
+                  className="text-sm text-green-700 dark:text-green-400 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
               {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
 
               <button
@@ -2002,6 +2029,172 @@ function LoginPage() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ForgotPasswordPage() {
+  const { setPage } = useContext(AppContext)
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+    setLoading(true)
+    try {
+      const res = await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
+      if (res.error) { setError(res.error); return }
+      setMessage(res.message || 'If that account exists, a reset link has been sent.')
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-lg p-8">
+          <div className="text-center mb-8">
+            <img src="/pmbjp-emblem.png" alt="Jan Aushadhi" className="w-14 h-14 mx-auto mb-3 rounded-lg object-contain" />
+            <h1 className="text-xl font-bold">Forgot Password</h1>
+            <p className="text-sm text-gray-500 mt-1">We'll email you a reset link</p>
+          </div>
+
+          {message ? (
+            <div className="text-center">
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 mb-6">
+                <p className="text-sm text-green-700 dark:text-green-400">{message}</p>
+              </div>
+              <button onClick={() => setPage('login')} className="text-sm text-green-700 dark:text-green-400 hover:underline">Back to sign in</button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Sending...' : 'Send reset link'}
+              </button>
+
+              <button type="button" onClick={() => setPage('login')} className="w-full text-sm text-gray-500 hover:underline">Back to sign in</button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ResetPasswordPage({ token }: { token: string | null }) {
+  const { setPage } = useContext(AppContext)
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+    if (!token) { setError('Missing reset token. Open the link from your email again.'); return }
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (password !== confirm) { setError('Passwords do not match'); return }
+    setLoading(true)
+    try {
+      const res = await api('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) })
+      if (res.error) { setError(res.error); return }
+      setMessage(res.message || 'Password updated. You can now sign in.')
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-lg p-8">
+          <div className="text-center mb-8">
+            <img src="/pmbjp-emblem.png" alt="Jan Aushadhi" className="w-14 h-14 mx-auto mb-3 rounded-lg object-contain" />
+            <h1 className="text-xl font-bold">Set New Password</h1>
+            <p className="text-sm text-gray-500 mt-1">Choose a new password for your account</p>
+          </div>
+
+          {message ? (
+            <div className="text-center">
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 mb-6">
+                <p className="text-sm text-green-700 dark:text-green-400">{message}</p>
+              </div>
+              <button type="button" onClick={() => { setPage('login') }} className="text-sm text-green-700 dark:text-green-400 hover:underline">Back to sign in</button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!token && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3">
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400">No reset token found. Open the link sent to your email.</p>
+                </div>
+              )}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Updating...' : 'Update password'}
+              </button>
+
+              <button type="button" onClick={() => setPage('login')} className="w-full text-sm text-gray-500 hover:underline">Back to sign in</button>
+            </form>
+          )}
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { Hono } from 'hono'
 import { prisma } from './src/lib/db'
 import { hash, compare } from 'bcryptjs'
+import { randomBytes } from 'crypto'
 import twilio from 'twilio'
 import nodemailer from 'nodemailer'
 import { writeFile, mkdir, readFile } from 'fs/promises'
@@ -43,19 +44,26 @@ if (smtpHost && smtpUser && smtpPass && storeEmail) {
   console.log('[Mailer] ⚠️ No SMTP creds — email alerts off (set SMTP_HOST/SMTP_USER/SMTP_PASS/STORE_EMAIL)')
 }
 
-async function sendStoreEmail(subject: string, html: string) {
-  if (!mailer || !storeEmail) return
+async function sendEmail(to: string, subject: string, html: string) {
+  if (!mailer) return false
   try {
     await mailer.sendMail({
       from: process.env.SMTP_FROM || smtpUser,
-      to: storeEmail,
+      to,
       subject,
       html,
     })
-    console.log('[Mailer] ✅ Order alert emailed')
+    return true
   } catch (e: any) {
     console.error('[Mailer] ❌ send failed:', e?.message || e)
+    return false
   }
+}
+
+async function sendStoreEmail(subject: string, html: string) {
+  if (!storeEmail) return
+  const ok = await sendEmail(storeEmail, subject, html)
+  if (ok) console.log('[Mailer] ✅ Order alert emailed')
 }
 
 // ── Personal WhatsApp (Baileys) bulk sender ─────────────
@@ -300,6 +308,75 @@ app.post('/auth/verify-otp', async (c) => {
   }
 
   return c.json({ verified: true })
+})
+
+// ── Password Reset (email link, no schema change) ──────────
+const RESET_TOKENS_FILE = join(process.cwd(), 'reset-tokens.json')
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000 // 30 minutes
+
+type ResetToken = { token: string; email: string; expiresAt: number }
+
+async function readResetTokens(): Promise<ResetToken[]> {
+  try {
+    return JSON.parse(await readFile(RESET_TOKENS_FILE, 'utf8')) as ResetToken[]
+  } catch {
+    return []
+  }
+}
+
+async function writeResetTokens(tokens: ResetToken[]) {
+  await writeFile(RESET_TOKENS_FILE, JSON.stringify(tokens, null, 2))
+}
+
+app.post('/auth/forgot-password', async (c) => {
+  const { email } = await c.req.json()
+  if (!email) return c.json({ error: 'Email is required' }, 400)
+
+  const user = await prisma.user.findUnique({ where: { email } })
+  // Always respond the same to avoid leaking which emails are registered.
+  if (user) {
+    const token = randomBytes(32).toString('hex')
+    const tokens = (await readResetTokens()).filter((t) => t.email !== email)
+    tokens.push({ token, email, expiresAt: Date.now() + RESET_TOKEN_TTL_MS })
+    await writeResetTokens(tokens)
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`
+    await sendEmail(
+      email,
+      'Reset your JanAushadhiGenerix password',
+      `<p>Hi ${user.name || 'there'},</p>
+       <p>We received a request to reset your password. Click the link below to choose a new password. This link expires in 30 minutes.</p>
+       <p><a href="${resetLink}">${resetLink}</a></p>
+       <p>If you didn't request this, you can safely ignore this email.</p>
+       <p>— JanAushadhiGenerix</p>`,
+    )
+  }
+  return c.json({ message: 'If that account exists, a password reset link has been sent to your email.' })
+})
+
+app.post('/auth/reset-password', async (c) => {
+  const { token, password } = await c.req.json()
+  if (!token || !password || String(password).length < 6) {
+    return c.json({ error: 'Token and a password of at least 6 characters are required' }, 400)
+  }
+
+  const tokens = await readResetTokens()
+  const record = tokens.find((t) => t.token === token)
+  if (!record || record.expiresAt < Date.now()) {
+    return c.json({ error: 'Invalid or expired reset link. Please request a new one.' }, 400)
+  }
+
+  const user = await prisma.user.findUnique({ where: { email: record.email } })
+  if (!user) return c.json({ error: 'Account not found' }, 400)
+
+  await prisma.user.update({
+    where: { email: record.email },
+    data: { password: await hash(String(password), 10) },
+  })
+  await writeResetTokens(tokens.filter((t) => t.token !== token))
+
+  return c.json({ message: 'Password updated. You can now sign in.' })
 })
 
 // ── Medicine Routes (prefixed /shop to avoid CRUD collision) ─

@@ -1184,6 +1184,7 @@ export type MedicineCreateOrConnectWithoutCategoryInput = {
 
 export type MedicineCreateManyCategoryInputEnvelope = {
   data: Prisma.MedicineCreateManyCategoryInput | Prisma.MedicineCreateManyCategoryInput[]
+  skipDuplicates?: boolean
 }
 
 export type MedicineUpsertWithWhereUniqueWithoutCategoryInput = {
@@ -2796,6 +2797,7 @@ export type MedicineCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * The data used to create many Medicines.
    */
   data: Prisma.MedicineCreateManyInput | Prisma.MedicineCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -2814,6 +2816,7 @@ export type MedicineCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extens
    * The data used to create many Medicines.
    */
   data: Prisma.MedicineCreateManyInput | Prisma.MedicineCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

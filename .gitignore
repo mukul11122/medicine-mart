@@ -35,6 +35,7 @@ prisma/dev.db
 
 # Runtime secrets / generated
 fcm-tokens.json
+reset-tokens.json
 .shogo
 
 # OS
@@ -43,3 +44,5 @@ Desktop.ini
 
 # WhatsApp (Baileys) session
 wa-auth
+
+memory/

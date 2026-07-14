@@ -552,6 +552,7 @@ export type AddressCreateOrConnectWithoutUserInput = {
 
 export type AddressCreateManyUserInputEnvelope = {
   data: Prisma.AddressCreateManyUserInput | Prisma.AddressCreateManyUserInput[]
+  skipDuplicates?: boolean
 }
 
 export type AddressUpsertWithWhereUniqueWithoutUserInput = {
@@ -1506,6 +1507,7 @@ export type AddressCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Inter
    * The data used to create many Addresses.
    */
   data: Prisma.AddressCreateManyInput | Prisma.AddressCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1524,6 +1526,7 @@ export type AddressCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensi
    * The data used to create many Addresses.
    */
   data: Prisma.AddressCreateManyInput | Prisma.AddressCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

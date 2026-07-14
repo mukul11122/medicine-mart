@@ -504,6 +504,7 @@ export type OrderItemCreateOrConnectWithoutMedicineInput = {
 
 export type OrderItemCreateManyMedicineInputEnvelope = {
   data: Prisma.OrderItemCreateManyMedicineInput | Prisma.OrderItemCreateManyMedicineInput[]
+  skipDuplicates?: boolean
 }
 
 export type OrderItemUpsertWithWhereUniqueWithoutMedicineInput = {
@@ -557,6 +558,7 @@ export type OrderItemCreateOrConnectWithoutOrderInput = {
 
 export type OrderItemCreateManyOrderInputEnvelope = {
   data: Prisma.OrderItemCreateManyOrderInput | Prisma.OrderItemCreateManyOrderInput[]
+  skipDuplicates?: boolean
 }
 
 export type OrderItemUpsertWithWhereUniqueWithoutOrderInput = {
@@ -1375,6 +1377,7 @@ export type OrderItemCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Int
    * The data used to create many OrderItems.
    */
   data: Prisma.OrderItemCreateManyInput | Prisma.OrderItemCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1393,6 +1396,7 @@ export type OrderItemCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Exten
    * The data used to create many OrderItems.
    */
   data: Prisma.OrderItemCreateManyInput | Prisma.OrderItemCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */

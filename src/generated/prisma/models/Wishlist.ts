@@ -406,6 +406,7 @@ export type WishlistCreateOrConnectWithoutUserInput = {
 
 export type WishlistCreateManyUserInputEnvelope = {
   data: Prisma.WishlistCreateManyUserInput | Prisma.WishlistCreateManyUserInput[]
+  skipDuplicates?: boolean
 }
 
 export type WishlistUpsertWithWhereUniqueWithoutUserInput = {
@@ -453,6 +454,7 @@ export type WishlistCreateOrConnectWithoutMedicineInput = {
 
 export type WishlistCreateManyMedicineInputEnvelope = {
   data: Prisma.WishlistCreateManyMedicineInput | Prisma.WishlistCreateManyMedicineInput[]
+  skipDuplicates?: boolean
 }
 
 export type WishlistUpsertWithWhereUniqueWithoutMedicineInput = {
@@ -1243,6 +1245,7 @@ export type WishlistCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * The data used to create many Wishlists.
    */
   data: Prisma.WishlistCreateManyInput | Prisma.WishlistCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1261,6 +1264,7 @@ export type WishlistCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extens
    * The data used to create many Wishlists.
    */
   data: Prisma.WishlistCreateManyInput | Prisma.WishlistCreateManyInput[]
+  skipDuplicates?: boolean
   /**
    * Choose, which related nodes to fetch as well
    */
