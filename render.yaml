@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: janaushadhi-app
+    runtime: node
+    buildCommand: npm install -g bun && bun install && bun run build
+    startCommand: bun run start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        value: myapp-10df8
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: STORE_EMAIL
+        sync: false
+      - key: VAPID_KEY
+        value: BFCRLN4AJotV2s4xvgtlN834gKkY25aIeFlw2AwayvttSHlJTslJqQHfTbHyaVsAizwumxY6bSbWVlZS2X3UmBo
+      - key: PORT
+        value: 10000
