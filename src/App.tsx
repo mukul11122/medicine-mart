@@ -34,6 +34,7 @@ interface Medicine {
   packSize: string
   mrp: number
   sellingPrice: number
+  gst: number
   discount: number
   stockQuantity: number
   minimumStockLevel: number
@@ -2789,6 +2790,11 @@ function AdminMedicines() {
   const [medicines, setMedicines] = useState<Medicine[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', mrp: '', sellingPrice: '', stockQuantity: '', gst: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
 
   const loadMedicines = () => {
     api('/admin/medicines').then(d => setMedicines(d.medicines || [])).finally(() => setLoading(false))
@@ -2802,6 +2808,66 @@ function AdminMedicines() {
       body: JSON.stringify({ imageUrl }),
     })
     loadMedicines()
+  }
+
+  const startEdit = (med: Medicine) => {
+    setEditingId(med.id)
+    setEditForm({
+      name: med.name,
+      mrp: String(med.mrp),
+      sellingPrice: String(med.sellingPrice),
+      stockQuantity: String(med.stockQuantity),
+      gst: String(med.gst),
+    })
+    setEditError('')
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditError('')
+  }
+
+  const editField = (field: string, value: string) => setEditForm(p => ({ ...p, [field]: value }))
+
+  const saveEdit = async (medicineId: string) => {
+    const mrp = parseFloat(editForm.mrp)
+    const sellingPrice = parseFloat(editForm.sellingPrice)
+    const stockQuantity = parseInt(editForm.stockQuantity)
+    const gst = parseFloat(editForm.gst)
+    if (!editForm.name.trim()) {
+      setEditError('Name is required')
+      return
+    }
+    if (isNaN(mrp) || isNaN(sellingPrice) || mrp < 0 || sellingPrice < 0) {
+      setEditError('Enter valid non-negative prices')
+      return
+    }
+    if (sellingPrice > mrp) {
+      setEditError('Selling price cannot exceed MRP')
+      return
+    }
+    if (isNaN(stockQuantity) || stockQuantity < 0) {
+      setEditError('Enter a valid stock quantity')
+      return
+    }
+    if (isNaN(gst) || gst < 0) {
+      setEditError('Enter a valid GST %')
+      return
+    }
+    setSavingEdit(true)
+    setEditError('')
+    try {
+      await api(`/admin/medicines/${medicineId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: editForm.name.trim(), mrp, sellingPrice, stockQuantity, gst }),
+      })
+      setEditingId(null)
+      loadMedicines()
+    } catch {
+      setEditError('Failed to save. Try again.')
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   const filtered = medicines.filter(m =>
@@ -2821,11 +2887,21 @@ function AdminMedicines() {
           <button onClick={() => setPage('admin')} className="px-4 py-2 border border-gray-200 dark:border-gray-800 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
             ← Dashboard
           </button>
+          <button onClick={() => setShowAdd(v => !v)} className="px-4 py-2 border border-green-600 text-green-700 dark:text-green-400 rounded-lg text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20">
+            {showAdd ? 'Close Quick Add' : '⚡ Quick Add'}
+          </button>
           <button onClick={() => setPage('admin-add-medicine')} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
             + Add Medicine
           </button>
         </div>
       </div>
+
+      {showAdd && (
+        <QuickAddMedicine
+          onAdded={() => { loadMedicines(); setShowAdd(false) }}
+          onCancel={() => setShowAdd(false)}
+        />
+      )}
 
       <div className="mb-4">
         <input
@@ -2850,6 +2926,7 @@ function AdminMedicines() {
                 <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Price</th>
                 <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Stock</th>
                 <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -2863,17 +2940,74 @@ function AdminMedicines() {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-sm font-medium">{med.name}</p>
-                    <p className="text-xs text-gray-500">{med.genericName}</p>
+                    {editingId === med.id ? (
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={e => editField('name', e.target.value)}
+                        className="w-40 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                      />
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium">{med.name}</p>
+                        <p className="text-xs text-gray-500">{med.genericName}</p>
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500 font-mono">{med.sku}</td>
                   <td className="px-4 py-3 text-xs text-gray-500">{med.category?.name}</td>
-                  <td className="px-4 py-3 text-sm">₹{med.mrp.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-green-600 dark:text-green-400">₹{med.sellingPrice.toFixed(2)}</td>
+                  {editingId === med.id ? (
+                    <>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editForm.mrp}
+                          onChange={e => editField('mrp', e.target.value)}
+                          className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editForm.sellingPrice}
+                          onChange={e => editField('sellingPrice', e.target.value)}
+                          className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                        <span className="text-xs text-gray-400 block mt-1">GST%</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editForm.gst}
+                          onChange={e => editField('gst', e.target.value)}
+                          className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-3 text-sm">₹{med.mrp.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-green-600 dark:text-green-400">₹{med.sellingPrice.toFixed(2)}<span className="text-xs text-gray-400 font-normal block">GST {med.gst}%</span></td>
+                    </>
+                  )}
                   <td className="px-4 py-3">
-                    <span className={cn('text-sm font-medium', med.stockQuantity <= med.minimumStockLevel ? 'text-orange-500' : 'text-gray-700 dark:text-gray-300')}>
-                      {med.stockQuantity}
-                    </span>
+                    {editingId === med.id ? (
+                      <input
+                        type="number"
+                        min="0"
+                        value={editForm.stockQuantity}
+                        onChange={e => editField('stockQuantity', e.target.value)}
+                        className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                      />
+                    ) : (
+                      <span className={cn('text-sm font-medium', med.stockQuantity <= med.minimumStockLevel ? 'text-orange-500' : 'text-gray-700 dark:text-gray-300')}>
+                        {med.stockQuantity}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium',
@@ -2882,6 +3016,36 @@ function AdminMedicines() {
                       {med.stockQuantity > 0 ? 'In Stock' : 'Out of Stock'}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {editingId === med.id ? (
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => saveEdit(med.id)}
+                            disabled={savingEdit}
+                            className="px-3 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {savingEdit ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            disabled={savingEdit}
+                            className="px-3 py-1 border border-gray-300 dark:border-gray-700 rounded text-xs hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {editError && <p className="text-xs text-red-500 whitespace-nowrap">{editError}</p>}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEdit(med)}
+                        className="px-3 py-1 border border-gray-300 dark:border-gray-700 rounded text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -2889,6 +3053,117 @@ function AdminMedicines() {
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Quick Add Medicine (inline) ──────────────────────────────
+
+function QuickAddMedicine({ onAdded, onCancel }: { onAdded: () => void; onCancel: () => void }) {
+  const [categories, setCategories] = useState<Category[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState({
+    sku: '', name: '', genericName: '', composition: '', manufacturer: '',
+    categoryId: '', packSize: '', mrp: '', sellingPrice: '', gst: '12',
+    stockQuantity: '', minimumStockLevel: '10',
+  })
+
+  useEffect(() => {
+    api('/shop/categories').then(d => setCategories(d.categories || []))
+  }, [])
+
+  const set = (field: string, value: string) => setForm(p => ({ ...p, [field]: value }))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const mrp = parseFloat(form.mrp)
+    const sellingPrice = parseFloat(form.sellingPrice)
+    const gst = parseFloat(form.gst)
+    const stockQuantity = parseInt(form.stockQuantity)
+    if (!form.sku.trim() || !form.name.trim() || !form.genericName.trim() || !form.composition.trim() || !form.manufacturer.trim() || !form.categoryId || !form.packSize.trim()) {
+      setError('Fill all required fields')
+      return
+    }
+    if (isNaN(mrp) || isNaN(sellingPrice) || mrp < 0 || sellingPrice < 0) {
+      setError('Enter valid prices')
+      return
+    }
+    if (sellingPrice > mrp) {
+      setError('Selling price cannot exceed MRP')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      const res = await api('/admin/medicines', {
+        method: 'POST',
+        body: JSON.stringify({
+          sku: form.sku.trim(),
+          name: form.name.trim(),
+          genericName: form.genericName.trim(),
+          composition: form.composition.trim(),
+          manufacturer: form.manufacturer.trim(),
+          categoryId: form.categoryId,
+          packSize: form.packSize.trim(),
+          mrp,
+          sellingPrice,
+          gst: isNaN(gst) ? 12 : gst,
+          stockQuantity: isNaN(stockQuantity) ? 0 : stockQuantity,
+          minimumStockLevel: parseInt(form.minimumStockLevel) || 10,
+          isActive: true,
+          isFeatured: false,
+          rating: 0,
+          reviewCount: 0,
+        }),
+      })
+      if (res.medicine) {
+        onAdded()
+      } else {
+        setError(res.error || 'Failed to add medicine')
+      }
+    } catch {
+      setError('Failed to add medicine. Try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-green-50/50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/40 rounded-xl p-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-green-800 dark:text-green-300">⚡ Quick Add Product</h3>
+        <span className="text-xs text-gray-500">Need full details? Use "+ Add Medicine"</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Field label="SKU" value={form.sku} onChange={v => set('sku', v)} placeholder="JAN-XXX-000" required />
+        <Field label="Medicine Name" value={form.name} onChange={v => set('name', v)} placeholder="Paracetamol 500mg" required />
+        <Field label="Generic Name" value={form.genericName} onChange={v => set('genericName', v)} placeholder="Paracetamol" required />
+        <Field label="Composition" value={form.composition} onChange={v => set('composition', v)} placeholder="Paracetamol IP 500mg" required />
+        <Field label="Manufacturer" value={form.manufacturer} onChange={v => set('manufacturer', v)} placeholder="Janaushadhi Generic" required />
+        <div>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Category</label>
+          <select value={form.categoryId} onChange={e => set('categoryId', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800" required>
+            <option value="">Select Category</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <Field label="Pack Size" value={form.packSize} onChange={v => set('packSize', v)} placeholder="10 tablets" required />
+        <Field label="MRP (₹)" value={form.mrp} onChange={v => set('mrp', v)} type="number" placeholder="10.00" required />
+        <Field label="Selling Price (₹)" value={form.sellingPrice} onChange={v => set('sellingPrice', v)} type="number" placeholder="7.00" required />
+        <Field label="GST (%)" value={form.gst} onChange={v => set('gst', v)} type="number" />
+        <Field label="Stock Quantity" value={form.stockQuantity} onChange={v => set('stockQuantity', v)} type="number" />
+        <Field label="Min Stock Level" value={form.minimumStockLevel} onChange={v => set('minimumStockLevel', v)} type="number" />
+      </div>
+      {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
+      <div className="flex gap-3 mt-4">
+        <button type="submit" disabled={saving} className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
+          {saving ? 'Adding...' : 'Add Product'}
+        </button>
+        <button type="button" onClick={onCancel} className="px-6 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
+          Cancel
+        </button>
+      </div>
+    </form>
   )
 }
 
