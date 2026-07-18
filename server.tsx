@@ -47,7 +47,7 @@ app.post('/api/tools/execute', (c) => tools.execute(c.req.raw))
 app.get('/api/tools/schemas', (c) => tools.list(c.req.raw))
 
 // Serve static files in production
-app.use('/*', serveStatic({ root: './dist' }))
+app.get('/*', serveStatic({ root: './dist' }))
 app.get('*', serveStatic({ path: './dist/index.html' }))
 
 const port = Number(process.env.PORT) || 3001
