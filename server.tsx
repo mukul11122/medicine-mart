@@ -16,9 +16,9 @@ const app = new Hono()
 
 // CORS — manual middleware so the wildcard always propagates
 app.use('*', async (c, next) => {
-  c.res.headers.set('Access-Control-Allow-Origin', '*')
-  c.res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
-  c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+  c.header('Access-Control-Allow-Origin', '*')
+  c.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+  c.header('Access-Control-Allow-Headers', 'Content-Type,Authorization')
   if (c.req.method === 'OPTIONS') return c.text('', 204)
   await next()
 })
