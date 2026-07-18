@@ -11,7 +11,7 @@ FROM base AS release
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/generated ./src/generated
-COPY package.json server.tsx prisma.config.ts ./
+COPY package.json server.tsx prisma.config.ts custom-routes.ts ./
 COPY prisma ./prisma
 
 ENV NODE_ENV=production
