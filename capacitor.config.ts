@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'JanAushadhi Generix',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    url: 'https://medicine-mart.onrender.com'
   }
 };
 

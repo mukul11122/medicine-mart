@@ -26,6 +26,8 @@ app.use('*', async (c, next) => {
 // Health check endpoint
 app.get('/health', (c) => c.json({ ok: true, timestamp: new Date().toISOString() }))
 
+app.get('/api/health', (c) => c.json({ ok: true, timestamp: new Date().toISOString() }))
+
 // CRUD routes (available after schema.prisma has models)
 try {
   const { createAllRoutes } = await import('./src/generated')
