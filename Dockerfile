@@ -10,8 +10,7 @@ RUN bun run build
 FROM base AS release
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/src/generated ./src/generated
-COPY --from=build /app/src/lib ./src/lib
+COPY --from=build /app/src ./src
 COPY package.json server.tsx prisma.config.ts custom-routes.ts ./
 COPY prisma ./prisma
 
