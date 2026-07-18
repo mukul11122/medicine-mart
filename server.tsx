@@ -52,3 +52,12 @@ const port = Number(process.env.PORT) || 3001
 console.log(`🚀 Server running on http://localhost:${port}`)
 
 Bun.serve({ port, fetch: app.fetch })
+
+if (process.env.RENDER) {
+  const KEEPALIVE_MS = 10 * 60 * 1000;
+  setInterval(() => {
+    const host = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+    fetch(`${host}/health`).catch(() => {});
+  }, KEEPALIVE_MS);
+  console.log('🔄 Keep-alive ping enabled (every 10 min)');
+}
