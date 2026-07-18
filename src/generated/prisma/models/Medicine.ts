@@ -1059,10 +1059,6 @@ export type IntFieldUpdateOperationsInput = {
   divide?: number
 }
 
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
-}
-
 export type MedicineCreateNestedOneWithoutCartItemsInput = {
   create?: Prisma.XOR<Prisma.MedicineCreateWithoutCartItemsInput, Prisma.MedicineUncheckedCreateWithoutCartItemsInput>
   connectOrCreate?: Prisma.MedicineCreateOrConnectWithoutCartItemsInput

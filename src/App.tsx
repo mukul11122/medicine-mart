@@ -11,6 +11,7 @@ interface User {
   name: string
   role: string
   phone?: string
+  phoneVerified?: boolean
 }
 
 interface Category {
@@ -108,6 +109,8 @@ interface AppState {
   setPage: (page: Page) => void
   user: User | null
   setUser: (user: User | null) => void
+  phoneVerifiedThisSession: boolean
+  setPhoneVerifiedThisSession: (v: boolean) => void
   cart: CartItem[]
   setCart: (cart: CartItem[]) => void
   cartCount: number
@@ -124,6 +127,7 @@ interface AppState {
 const AppContext = createContext<AppState>({
   page: 'home', setPage: () => {},
   user: null, setUser: () => {},
+  phoneVerifiedThisSession: false, setPhoneVerifiedThisSession: () => {},
   cart: [], setCart: () => {},
   cartCount: 0,
   selectedMedicine: null, setSelectedMedicine: () => {},
@@ -148,6 +152,7 @@ async function api(path: string, options?: RequestInit) {
 export default function App() {
   const [page, setPage] = useState<Page>('home')
   const [user, setUser] = useState<User | null>(null)
+  const [phoneVerifiedThisSession, setPhoneVerifiedThisSession] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
   const [cartCount, setCartCount] = useState(0)
   const [selectedMedicine, setSelectedMedicine] = useState<Medicine | null>(null)
@@ -220,6 +225,7 @@ export default function App() {
 
   const ctx: AppState = {
     page, setPage, user, setUser,
+    phoneVerifiedThisSession, setPhoneVerifiedThisSession,
     cart, setCart, cartCount,
     selectedMedicine, setSelectedMedicine,
     selectedOrder, setSelectedOrder,
@@ -474,7 +480,7 @@ function Navbar() {
                     <button onClick={() => setPage('profile')} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">My Profile</button>
                     <button onClick={() => setPage('orders')} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">My Orders</button>
                     <button onClick={() => setPage('wishlist')} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">Wishlist</button>
-                    <button onClick={() => { setUser(null); setPage('home') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-50 dark:hover:bg-gray-700">Logout</button>
+                    <button onClick={() => { setUser(null); setPhoneVerifiedThisSession(false); setPage('home') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-50 dark:hover:bg-gray-700">Logout</button>
                   </div>
                 </div>
               </>
@@ -514,7 +520,7 @@ function Navbar() {
                 <button onClick={() => { setPage('orders'); setMobileMenuOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-sm">My Orders</button>
                 <button onClick={() => { setPage('wishlist'); setMobileMenuOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-sm">Wishlist</button>
                 {user.role === 'admin' && <button onClick={() => { setPage('admin'); setMobileMenuOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-sm">Admin Panel</button>}
-                <button onClick={() => { setUser(null); setPage('home'); setMobileMenuOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg text-red-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm">Logout</button>
+                <button onClick={() => { setUser(null); setPhoneVerifiedThisSession(false); setPage('home'); setMobileMenuOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg text-red-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm">Logout</button>
               </>
             ) : (
               <button onClick={() => { setPage('login'); setMobileMenuOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium">Login</button>
@@ -1397,7 +1403,7 @@ function CartPage() {
 // ── Checkout Page ────────────────────────────────────────────
 
 function CheckoutPage() {
-  const { user, cart, setPage, refreshCart } = useContext(AppContext)
+  const { user, cart, setPage, refreshCart, phoneVerifiedThisSession, setPhoneVerifiedThisSession } = useContext(AppContext)
   const [addresses, setAddresses] = useState<Address[]>([])
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null)
   const [paymentMethod, setPaymentMethod] = useState('upi')
@@ -1415,10 +1421,12 @@ function CheckoutPage() {
   const [otpTimer, setOtpTimer] = useState(0)
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpError, setOtpError] = useState('')
+  const [devOtp, setDevOtp] = useState('')
+  const [orderError, setOrderError] = useState('')
 
   useEffect(() => {
     if (user) {
-      api(`/addresses/${user.id}`).then(d => {
+      api(`/addresses/by-user/${user.id}`).then(d => {
         const addrs = d.addresses || []
         setAddresses(addrs)
         if (addrs.length > 0) setSelectedAddress(addrs[0])
@@ -1467,7 +1475,7 @@ function CheckoutPage() {
           couponCode: appliedCoupon?.code,
         }),
       })
-      if (res.error) return
+      if (res.error) { setOrderError(res.error); return }
       refreshCart()
       setPage('orders')
     } finally {
@@ -1475,16 +1483,33 @@ function CheckoutPage() {
     }
   }
 
+  const [addressError, setAddressError] = useState('')
+
   const addAddress = async () => {
-    const res = await api('/addresses', {
-      method: 'POST',
-      body: JSON.stringify({ ...newAddress, userId: user.id }),
-    })
-    if (res.address) {
-      setAddresses(prev => [...prev, res.address])
-      setSelectedAddress(res.address)
-      setShowAddAddress(false)
-      setNewAddress({ name: '', phone: '', line1: '', line2: '', city: '', state: '', pincode: '', type: 'home' })
+    setAddressError('')
+    if (!newAddress.name.trim() || !newAddress.phone.trim() || !newAddress.line1.trim() || !newAddress.city.trim() || !newAddress.state.trim() || !newAddress.pincode.trim()) {
+      setAddressError('Please fill in name, phone, address, city, state and pincode.')
+      return
+    }
+    if (newAddress.phone.replace(/\D/g, '').length < 10) {
+      setAddressError('Please enter a valid 10-digit phone number.')
+      return
+    }
+    try {
+      const res = await api('/addresses/create', {
+        method: 'POST',
+        body: JSON.stringify({ ...newAddress, userId: user.id }),
+      })
+      if (res.error) { setAddressError(res.error); return }
+      if (res.address) {
+        setAddresses(prev => [...prev, res.address])
+        setSelectedAddress(res.address)
+        setShowAddAddress(false)
+        setOrderError('')
+        setNewAddress({ name: '', phone: '', line1: '', line2: '', city: '', state: '', pincode: '', type: 'home' })
+      }
+    } catch {
+      setAddressError('Failed to save address. Please try again.')
     }
   }
 
@@ -1497,6 +1522,13 @@ function CheckoutPage() {
       if (res.error) { setOtpError(res.error); return }
       setOtpSent(true)
       setOtpTimer(30)
+      // Dev mode: server returns OTP in response when Twilio isn't configured
+      if (res.otp) {
+        setCheckoutOtp(res.otp)
+        setDevOtp(res.otp)
+      } else {
+        setDevOtp('')
+      }
     } catch {
       setOtpError('Failed to send OTP.')
     } finally {
@@ -1513,6 +1545,7 @@ function CheckoutPage() {
       if (res.error) { setOtpError(res.error); return }
       if (res.verified) {
         setPhoneVerified(true)
+        setPhoneVerifiedThisSession(true)
         setShowOtpModal(false)
         placeOrder()
       }
@@ -1524,7 +1557,13 @@ function CheckoutPage() {
   }
 
   const handlePlaceOrderClick = () => {
-    if (phoneVerified) {
+    if (!selectedAddress) {
+      setShowAddAddress(true)
+      setOrderError('Please add and select a delivery address first.')
+      return
+    }
+    setOrderError('')
+    if (phoneVerified || phoneVerifiedThisSession) {
       placeOrder()
     } else {
       const phone = selectedAddress?.phone || user.phone || ''
@@ -1532,6 +1571,7 @@ function CheckoutPage() {
       setShowOtpModal(true)
       setOtpSent(false)
       setCheckoutOtp('')
+      setDevOtp('')
       setOtpError('')
     }
   }
@@ -1562,13 +1602,17 @@ function CheckoutPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <input placeholder="City" value={newAddress.city} onChange={e => setNewAddress(p => ({...p, city: e.target.value}))} className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800" />
                   <input placeholder="State" value={newAddress.state} onChange={e => setNewAddress(p => ({...p, state: e.target.value}))} className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800" />
-                  <input placeholder="Pincode" value={newAddress.pincode} onChange={e => setNewAddress(p => ({...p, pincode: e.target.value}))} className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800" />
+                  <input placeholder="Pincode" value={newAddress.pincode} onChange={e => setNewAddress(p => ({...p, pincode: e.target.value.replace(/\D/g, '').slice(0, 6)}))} className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800" />
                 </div>
+                {addressError && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{addressError}</p>}
                 <button onClick={addAddress} className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Save Address</button>
               </div>
             )}
 
             <div className="space-y-3">
+              {addresses.length === 0 && !showAddAddress && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 py-2">No delivery address yet. Click <span className="text-green-600 font-medium">+ Add New</span> to add one.</p>
+              )}
               {addresses.map(addr => (
                 <label key={addr.id} className={cn('flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors',
                   selectedAddress?.id === addr.id ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300'
@@ -1687,12 +1731,16 @@ function CheckoutPage() {
               </div>
             </div>
 
+            {orderError && (
+              <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg mt-4">{orderError}</p>
+            )}
+
             <button
               onClick={handlePlaceOrderClick}
-              disabled={placing || !selectedAddress}
-              className="w-full mt-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={placing}
+              className="w-full mt-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {placing ? 'Placing Order...' : phoneVerified ? 'Place Order' : 'Verify Phone & Place Order'}
+              {placing ? 'Placing Order...' : (phoneVerified || phoneVerifiedThisSession) ? 'Place Order' : 'Verify Phone & Place Order'}
             </button>
 
             <p className="text-[10px] text-gray-400 text-center mt-3">
@@ -1738,6 +1786,13 @@ function CheckoutPage() {
                 <div className="text-center bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
                   <p className="text-sm text-green-700 dark:text-green-400">OTP sent to +91 {checkoutPhone}</p>
                 </div>
+                {devOtp && (
+                  <div className="text-center bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                    <p className="text-xs text-amber-700 dark:text-amber-400">Dev mode (SMS not configured). Your OTP is:</p>
+                    <p className="text-2xl font-bold font-mono tracking-widest text-amber-800 dark:text-amber-300 mt-1">{devOtp}</p>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-1">Auto-filled below — just click Verify.</p>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Enter 6-digit OTP</label>
                   <input
@@ -1839,6 +1894,7 @@ function LoginPage() {
       if (res.error) { setError(res.error); return }
       if (res.user) {
         setUser(res.user)
+        setPhoneVerifiedThisSession(true)
         setPage(res.user.role === 'admin' ? 'admin' : 'home')
       }
     } catch {
@@ -2283,6 +2339,7 @@ function RegisterPage() {
       if (res.error) { setError(res.error); return }
       if (res.user) {
         setUser(res.user)
+        setPhoneVerifiedThisSession(true)
         setRegistered(true)
       }
     } catch {
@@ -3346,6 +3403,7 @@ function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const loadOrders = () => {
     api('/admin/orders').then(d => setOrders(d.orders || [])).finally(() => setLoading(false))
@@ -3369,6 +3427,13 @@ function AdminOrders() {
     cancelled: 'bg-red-100 text-red-700',
   }
 
+  const paymentLabels: Record<string, string> = {
+    upi: 'UPI',
+    card: 'Credit/Debit Card',
+    netbanking: 'Net Banking',
+    cod: 'Cash on Delivery',
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
@@ -3390,55 +3455,150 @@ function AdminOrders() {
         ))}
       </div>
 
-      <div className="space-y-4">
-        {filtered.map(order => (
-          <div key={order.id} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="font-semibold">#{order.orderNumber}</p>
-                <p className="text-sm text-gray-500">{order.user?.name} • {order.user?.email}</p>
-                <p className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleString('en-IN')}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-lg">₹{order.total.toFixed(2)}</p>
-                <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium capitalize', statusColors[order.status])}>
-                  {order.status}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 mb-4">
-              {order.items.map(item => (
-                <div key={item.id} className="bg-gray-50 dark:bg-gray-800/50 px-3 py-1.5 rounded-lg text-xs">
-                  {item.medicine.name} × {item.quantity}
-                </div>
-              ))}
-            </div>
-
-            {order.address && (
-              <p className="text-xs text-gray-500 mb-4">📍 {order.address.line1}, {order.address.city}, {order.address.state} - {order.address.pincode}</p>
-            )}
-
-            <div className="flex gap-2 flex-wrap">
-              {order.status === 'pending' && (
-                <button onClick={() => updateStatus(order.id, 'confirmed')} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">Confirm</button>
-              )}
-              {order.status === 'confirmed' && (
-                <button onClick={() => updateStatus(order.id, 'packed')} className="px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700">Mark Packed</button>
-              )}
-              {order.status === 'packed' && (
-                <button onClick={() => updateStatus(order.id, 'shipped')} className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700">Mark Shipped</button>
-              )}
-              {order.status === 'shipped' && (
-                <button onClick={() => updateStatus(order.id, 'delivered')} className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700">Mark Delivered</button>
-              )}
-              {['pending', 'confirmed'].includes(order.status) && (
-                <button onClick={() => updateStatus(order.id, 'cancelled')} className="px-3 py-1.5 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200">Cancel</button>
-              )}
-            </div>
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading orders...</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-gray-500">No orders found.</p>
+      ) : (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          {/* Table header */}
+          <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <div className="col-span-3">Order</div>
+            <div className="col-span-3">Customer</div>
+            <div className="col-span-2">Date</div>
+            <div className="col-span-2 text-right">Value</div>
+            <div className="col-span-2 text-center">Status</div>
           </div>
-        ))}
-      </div>
+
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {filtered.map(order => {
+              const expanded = expandedId === order.id
+              return (
+                <div key={order.id}>
+                  {/* Row — click to expand */}
+                  <button
+                    onClick={() => setExpandedId(expanded ? null : order.id)}
+                    className="w-full grid grid-cols-12 gap-4 px-5 py-4 items-center text-left hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors"
+                  >
+                    <div className="col-span-12 md:col-span-3 flex items-center gap-2">
+                      <span className={cn('text-gray-400 transition-transform', expanded && 'rotate-90')}>▶</span>
+                      <span className="font-semibold text-sm">#{order.orderNumber}</span>
+                      <span className="text-xs text-gray-400 md:hidden ml-auto">₹{order.total.toFixed(2)}</span>
+                    </div>
+                    <div className="col-span-6 md:col-span-3 text-sm">
+                      <p className="font-medium truncate">{order.user?.name || 'Customer'}</p>
+                      <p className="text-xs text-gray-500 truncate">{order.address?.phone || order.user?.phone || '—'}</p>
+                    </div>
+                    <div className="col-span-6 md:col-span-2 text-xs text-gray-500">
+                      {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </div>
+                    <div className="col-span-6 md:col-span-2 md:text-right font-bold">₹{order.total.toFixed(2)}</div>
+                    <div className="col-span-6 md:col-span-2 md:text-center">
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium capitalize', statusColors[order.status])}>{order.status}</span>
+                    </div>
+                  </button>
+
+                  {/* Expanded details */}
+                  {expanded && (
+                    <div className="px-5 pb-6 pt-2 bg-gray-50/60 dark:bg-gray-800/30">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* Products */}
+                        <div>
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Products Ordered</h3>
+                          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800">
+                                  <th className="text-left px-3 py-2 font-medium">Item</th>
+                                  <th className="text-center px-2 py-2 font-medium">Qty</th>
+                                  <th className="text-right px-2 py-2 font-medium">Price</th>
+                                  <th className="text-right px-3 py-2 font-medium">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {order.items.map(item => (
+                                  <tr key={item.id} className="border-b border-gray-50 dark:border-gray-800/50 last:border-0">
+                                    <td className="px-3 py-2">{item.medicine?.name || 'Item'}</td>
+                                    <td className="text-center px-2 py-2">{item.quantity}</td>
+                                    <td className="text-right px-2 py-2">₹{item.price.toFixed(2)}</td>
+                                    <td className="text-right px-3 py-2 font-medium">₹{item.total.toFixed(2)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Price breakdown */}
+                          <div className="mt-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-3 text-sm space-y-1">
+                            <div className="flex justify-between text-gray-600 dark:text-gray-400"><span>Subtotal</span><span>₹{order.subtotal.toFixed(2)}</span></div>
+                            {order.discount > 0 && <div className="flex justify-between text-green-600"><span>Discount</span><span>-₹{order.discount.toFixed(2)}</span></div>}
+                            <div className="flex justify-between text-gray-600 dark:text-gray-400"><span>GST</span><span>₹{order.gstAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between text-gray-600 dark:text-gray-400"><span>Delivery</span><span>{order.deliveryCharge === 0 ? 'FREE' : `₹${order.deliveryCharge.toFixed(2)}`}</span></div>
+                            <div className="flex justify-between font-bold pt-1 border-t border-gray-100 dark:border-gray-800"><span>Total</span><span>₹{order.total.toFixed(2)}</span></div>
+                          </div>
+                        </div>
+
+                        {/* Customer + Payment */}
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Customer Details</h3>
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-3 text-sm space-y-1">
+                              <p><span className="text-gray-500">Name:</span> {order.user?.name || '—'}</p>
+                              <p><span className="text-gray-500">Email:</span> {order.user?.email || '—'}</p>
+                              <p><span className="text-gray-500">Phone:</span> {order.address?.phone || order.user?.phone || '—'}</p>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Delivery Address</h3>
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-3 text-sm">
+                              {order.address ? (
+                                <>
+                                  <p className="font-medium">{order.address.name} <span className="text-xs text-gray-400 capitalize">({order.address.type})</span></p>
+                                  <p className="text-gray-600 dark:text-gray-400">{order.address.line1}{order.address.line2 ? `, ${order.address.line2}` : ''}</p>
+                                  <p className="text-gray-600 dark:text-gray-400">{order.address.city}, {order.address.state} - {order.address.pincode}</p>
+                                  <p className="text-gray-600 dark:text-gray-400">📞 {order.address.phone}</p>
+                                </>
+                              ) : <p className="text-gray-400">No address on file</p>}
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Payment</h3>
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-3 text-sm space-y-1">
+                              <p><span className="text-gray-500">Mode:</span> {order.paymentMethod ? (paymentLabels[order.paymentMethod] || order.paymentMethod) : '—'}</p>
+                              <p><span className="text-gray-500">Payment Status:</span> <span className="capitalize">{order.paymentStatus}</span></p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status actions */}
+                      <div className="flex gap-2 flex-wrap mt-4">
+                        {order.status === 'pending' && (
+                          <button onClick={() => updateStatus(order.id, 'confirmed')} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">Confirm</button>
+                        )}
+                        {order.status === 'confirmed' && (
+                          <button onClick={() => updateStatus(order.id, 'packed')} className="px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700">Mark Packed</button>
+                        )}
+                        {order.status === 'packed' && (
+                          <button onClick={() => updateStatus(order.id, 'shipped')} className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700">Mark Shipped</button>
+                        )}
+                        {order.status === 'shipped' && (
+                          <button onClick={() => updateStatus(order.id, 'delivered')} className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700">Mark Delivered</button>
+                        )}
+                        {['pending', 'confirmed'].includes(order.status) && (
+                          <button onClick={() => updateStatus(order.id, 'cancelled')} className="px-3 py-1.5 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200">Cancel</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

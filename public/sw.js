@@ -1,6 +1,5 @@
-const CACHE_NAME = 'janaushadhi-v1';
+const CACHE_NAME = 'janaushadhi-v2';
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
 ];
 
@@ -22,7 +21,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch — network-first for API, cache-first for assets
+// Fetch — network-first for API + navigations, cache-first for hashed assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -32,7 +31,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: cache first
+  // HTML navigations + the app shell: network-first so new builds load immediately
+  if (request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(request).then((c) => c || caches.match('/')))
+    );
+    return;
+  }
+
+  // Other static assets (hashed JS/CSS): cache first
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetched = fetch(request).then((response) => {

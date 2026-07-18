@@ -130,7 +130,7 @@ app.post('/auth/register', async (c) => {
     data: { email, password: hashedPassword, name, phone, role: 'customer' },
   })
 
-  return c.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } })
+  return c.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role, phoneVerified: false } })
 })
 
 app.post('/auth/login', async (c) => {
@@ -152,7 +152,7 @@ app.post('/auth/login', async (c) => {
   }
 
   return c.json({
-    user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone, phoneVerified: user.phoneVerified },
   })
 })
 
@@ -271,8 +271,11 @@ app.post('/auth/verify-otp', async (c) => {
     if (!user) {
       return c.json({ error: 'No account found' }, 404)
     }
+    if (!user.phoneVerified) {
+      await prisma.user.update({ where: { id: user.id }, data: { phoneVerified: true } })
+    }
     return c.json({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone, phoneVerified: true },
       verified: true,
     })
   }
@@ -294,11 +297,11 @@ app.post('/auth/verify-otp', async (c) => {
 
     const hashedPassword = await hash(password, 10)
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword, name, phone: normalizedPhone, role: 'customer' },
+      data: { email, password: hashedPassword, name, phone: normalizedPhone, phoneVerified: true, role: 'customer' },
     })
 
     return c.json({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone, phoneVerified: true },
       verified: true,
     })
   }
@@ -697,16 +700,39 @@ app.patch('/orders/:orderId/status', async (c) => {
 
 // ── Address Routes ───────────────────────────────────────────
 
-app.get('/addresses/:userId', async (c) => {
+app.get('/addresses/by-user/:userId', async (c) => {
   const userId = c.req.param('userId')
   const addresses = await prisma.address.findMany({ where: { userId } })
   return c.json({ addresses })
 })
 
-app.post('/addresses', async (c) => {
-  const body = await c.req.json()
-  const address = await prisma.address.create({ data: body })
-  return c.json({ address })
+app.post('/addresses/create', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { userId, name, phone, line1, line2, city, state, pincode, type } = body
+
+    if (!userId || !name || !phone || !line1 || !city || !state || !pincode) {
+      return c.json({ error: 'Please fill in all required fields (name, phone, address, city, state, pincode).' }, 400)
+    }
+
+    const address = await prisma.address.create({
+      data: {
+        userId,
+        name,
+        phone,
+        line1,
+        line2: line2 || null,
+        city,
+        state,
+        pincode,
+        type: type || 'home',
+      },
+    })
+    return c.json({ address })
+  } catch (e: any) {
+    console.error('[addresses] create failed:', e?.message)
+    return c.json({ error: 'Failed to save address. Please try again.' }, 500)
+  }
 })
 
 // ── Coupon Routes ────────────────────────────────────────────
