@@ -1,9 +1,8 @@
 services:
   - type: web
     name: janaushadhi-app
-    runtime: node
-    buildCommand: npm install -g bun && bun install && bun run build
-    startCommand: bun run start
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
     envVars:
       - key: NODE_ENV
@@ -32,5 +31,3 @@ services:
         sync: false
       - key: VAPID_KEY
         value: BFCRLN4AJotV2s4xvgtlN834gKkY25aIeFlw2AwayvttSHlJTslJqQHfTbHyaVsAizwumxY6bSbWVlZS2X3UmBo
-      - key: PORT
-        value: 10000

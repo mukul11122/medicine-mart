@@ -139,8 +139,10 @@ const AppContext = createContext<AppState>({
 
 // ── API Helpers ──────────────────────────────────────────────
 
+const API_BASE = 'https://medicine-mart.onrender.com'
+
 async function api(path: string, options?: RequestInit) {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })

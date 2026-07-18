@@ -5,11 +5,7 @@ const config: CapacitorConfig = {
   appName: 'JanAushadhi Generix',
   webDir: 'dist',
   server: {
-    url: 'http://10.0.2.2:3001',
-    cleartext: true
-  },
-  android: {
-    allowMixedContent: true
+    androidScheme: 'https'
   }
 };
 

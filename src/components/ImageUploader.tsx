@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import { cn } from '@/lib/cn'
 
+const API_BASE = 'https://medicine-mart.onrender.com'
+
 interface ImageUploaderProps {
   currentImage?: string
   onUpload: (imageUrl: string) => Promise<void>
@@ -42,7 +44,7 @@ export function ImageUploader({ currentImage, onUpload, className, size = 'md' }
       const formData = new FormData()
       formData.append('image', file)
 
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData })
       const data = await res.json()
 
       if (!res.ok) {
